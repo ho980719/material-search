@@ -1,14 +1,6 @@
 
 import 'package:flutter/material.dart';
-
-// Dummy data for warehouses
-class Warehouse {
-  final String id;
-  final String name;
-  final String memo;
-
-  Warehouse({required this.id, required this.name, required this.memo});
-}
+import 'package:material_search/models/warehouse.dart';
 
 class WarehouseSelectionDialog extends StatefulWidget {
   final List<Warehouse> warehouses;

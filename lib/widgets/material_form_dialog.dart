@@ -1,9 +1,11 @@
 
 import 'package:flutter/material.dart';
+import 'package:material_search/models/material.dart';
+import 'package:material_search/models/warehouse.dart';
 import './warehouse_selection_dialog.dart';
 
 class MaterialFormDialog extends StatefulWidget {
-  final Map<String, String>? material;
+  final MaterialItem? material;
 
   const MaterialFormDialog({super.key, this.material});
 
@@ -20,18 +22,18 @@ class _MaterialFormDialogState extends State<MaterialFormDialog> {
 
   // Dummy warehouse data for demonstration
   final List<Warehouse> _warehouses = [
-    Warehouse(id: '1', name: '창고 A', memo: '서울시 강남구'),
-    Warehouse(id: '2', name: '창고 B', memo: '경기도 판교'),
-    Warehouse(id: '3', name: '창고 C', memo: '인천시 서구'),
+    Warehouse(id: 1, name: '창고 A', memo: '서울시 강남구'),
+    Warehouse(id: 2, name: '창고 B', memo: '경기도 판교'),
+    Warehouse(id: 3, name: '창고 C', memo: '인천시 서구'),
   ];
 
   @override
   void initState() {
     super.initState();
-    _nameController = TextEditingController(text: widget.material?['name'] ?? '');
-    _locationController = TextEditingController(text: widget.material?['location'] ?? '');
-    _quantityController = TextEditingController(text: widget.material?['quantity'] ?? '');
-    _memoController = TextEditingController(text: widget.material?['memo'] ?? '');
+    _nameController = TextEditingController(text: widget.material?.name ?? '');
+    _locationController = TextEditingController(text: widget.material?.location ?? '');
+    _quantityController = TextEditingController(text: widget.material?.quantity ?? '');
+    _memoController = TextEditingController(text: widget.material?.memo ?? '');
   }
 
   @override

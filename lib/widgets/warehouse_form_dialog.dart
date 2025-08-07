@@ -1,6 +1,6 @@
 
 import 'package:flutter/material.dart';
-import 'package:material_search/widgets/warehouse_selection_dialog.dart';
+import 'package:material_search/models/warehouse.dart';
 
 class WarehouseFormDialog extends StatefulWidget {
   final Warehouse? warehouse;
@@ -64,7 +64,7 @@ class _WarehouseFormDialogState extends State<WarehouseFormDialog> {
               validator: (value) {
                 if (value == null || value.isEmpty) {
                   return '창고명을 입력해주세요.';
-                }ㅎ
+                }
                 return null;
               },
             ),
