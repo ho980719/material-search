@@ -1,6 +1,5 @@
-
 import 'package:flutter/material.dart';
-import 'package:material_search/models/warehouse.dart';
+import 'package:material_search/data/drift/database.dart';
 
 class WarehouseSelectionDialog extends StatefulWidget {
   final List<Warehouse> warehouses;
@@ -35,7 +34,7 @@ class _WarehouseSelectionDialogState extends State<WarehouseSelectionDialog> {
     setState(() {
       _filteredWarehouses = widget.warehouses.where((warehouse) {
         return warehouse.name.toLowerCase().contains(query) ||
-               warehouse.memo.toLowerCase().contains(query);
+               (warehouse.memo?.toLowerCase().contains(query) ?? false);
       }).toList();
     });
   }
@@ -66,7 +65,7 @@ class _WarehouseSelectionDialogState extends State<WarehouseSelectionDialog> {
                   final warehouse = _filteredWarehouses[index];
                   return ListTile(
                     title: Text(warehouse.name),
-                    subtitle: Text(warehouse.memo),
+                    subtitle: Text(warehouse.memo ?? ''),
                     onTap: () {
                       Navigator.of(context).pop(warehouse);
                     },

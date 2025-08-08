@@ -1,6 +1,6 @@
+import 'package:drift/drift.dart' hide Column;
 import 'package:flutter/material.dart';
-import 'package:material_search/models/warehouse.dart';
-import 'package:material_search/utils/database_helper.dart';
+import 'package:material_search/data/drift/database.dart';
 import '../widgets/warehouse_form_dialog.dart';
 
 class WarehouseManagementScreen extends StatefulWidget {
@@ -12,7 +12,7 @@ class WarehouseManagementScreen extends StatefulWidget {
 }
 
 class _WarehouseManagementScreenState extends State<WarehouseManagementScreen> {
-  final DatabaseHelper _dbHelper = DatabaseHelper.instance;
+  late AppDatabase _db;
   List<Warehouse> _warehouses = [];
   bool _isLoading = true;
 
@@ -23,12 +23,14 @@ class _WarehouseManagementScreenState extends State<WarehouseManagementScreen> {
   @override
   void initState() {
     super.initState();
+    _db = AppDatabase();
     _refreshWarehouseList();
   }
-
+  
   @override
   void dispose() {
     _searchController.dispose();
+    _db.close();
     super.dispose();
   }
 
@@ -37,7 +39,20 @@ class _WarehouseManagementScreenState extends State<WarehouseManagementScreen> {
       _isLoading = true;
     });
     try {
-      final data = await _dbHelper.getWarehouses(query: _searchController.text, type: _searchType);
+      final data = await (_db.select(_db.warehouses)
+            ..where((tbl) {
+              if (_searchController.text.isEmpty) {
+                return const Constant(true);
+              } else {
+                if (_searchType == 'all') {
+                  return tbl.name.like('%${_searchController.text}%') |
+                      tbl.memo.like('%${_searchController.text}%');
+                } else {
+                  return tbl.name.like('%${_searchController.text}%');
+                }
+              }
+            })
+          ).get();
 
       if (mounted) {
         setState(() {
@@ -59,7 +74,7 @@ class _WarehouseManagementScreenState extends State<WarehouseManagementScreen> {
   void _showWarehouseFormDialog({Warehouse? warehouse}) async {
     final result = await showDialog<bool>(
       context: context,
-      builder: (context) => WarehouseFormDialog(warehouse: warehouse),
+      builder: (context) => WarehouseFormDialog(warehouse: warehouse, db: _db),
     );
     if (result == true) {
       _refreshWarehouseList();
@@ -89,7 +104,7 @@ class _WarehouseManagementScreenState extends State<WarehouseManagementScreen> {
     // 사용자가 '삭제'를 선택했을 때만 실행
     if (confirm == true) {
       try {
-        await _dbHelper.deleteWarehouse(id);
+        await (_db.delete(_db.warehouses)..where((tbl) => tbl.id.equals(id))).go();
         // 삭제 후 목록 새로고침
         _refreshWarehouseList();
       } catch (e) {
@@ -211,7 +226,7 @@ class _WarehouseManagementScreenState extends State<WarehouseManagementScreen> {
                                       warehouse: warehouse);
                                 } else if (value == 'delete') {
 
-                                  _deleteWarehouse(warehouse.id!);
+                                  _deleteWarehouse(warehouse.id);
                                 }
                               },
                               itemBuilder: (context) => [

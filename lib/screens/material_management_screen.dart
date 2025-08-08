@@ -1,7 +1,6 @@
-
-import 'package:flutter/material.dart';
-import 'package:material_search/models/material.dart';
-import 'package:material_search/utils/database_helper.dart';
+import 'package:drift/drift.dart' hide Column;
+import 'package:flutter/material.dart' hide Material;
+import 'package:material_search/data/drift/database.dart';
 import 'package:material_search/widgets/material_form_dialog.dart';
 
 class MaterialManagementScreen extends StatefulWidget {
@@ -12,23 +11,25 @@ class MaterialManagementScreen extends StatefulWidget {
 }
 
 class _MaterialManagementScreenState extends State<MaterialManagementScreen> {
-  final DatabaseHelper _dbHelper = DatabaseHelper.instance;
-  List<MaterialItem> _materials = [];
+  late AppDatabase _db;
+  List<Material> _materials = [];
   bool _isLoading = true;
 
   // 검색 관련 상태
   final TextEditingController _searchController = TextEditingController();
-  String _searchType = 'all'; // 'all', 'name'
+  String _searchType = 'all'; // 'all', 'name', 'location'
 
   @override
   void initState() {
     super.initState();
+    _db = AppDatabase();
     _refreshMaterialList();
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _db.close();
     super.dispose();
   }
 
@@ -37,7 +38,25 @@ class _MaterialManagementScreenState extends State<MaterialManagementScreen> {
       _isLoading = true;
     });
     try {
-      final data = await _dbHelper.getMaterials(query: _searchController.text, type: _searchType);
+      final data = await (_db.select(_db.materials)
+            ..where((tbl) {
+              if (_searchController.text.isEmpty) {
+                return const Constant(true);
+              } else {
+                switch (_searchType) {
+                  case 'name':
+                    return tbl.name.like('%${_searchController.text}%');
+                  case 'location':
+                    return tbl.location.like('%${_searchController.text}%');
+                  case 'all':
+                  default:
+                    return tbl.name.like('%${_searchController.text}%') |
+                        tbl.location.like('%${_searchController.text}%') |
+                        tbl.memo.like('%${_searchController.text}%');
+                }
+              }
+            })
+          ).get();
 
       if (mounted) {
         setState(() {
@@ -56,13 +75,47 @@ class _MaterialManagementScreenState extends State<MaterialManagementScreen> {
     }
   }
 
-  void _showMaterialFormDialog({material}) {
-    showDialog(
+  void _showMaterialFormDialog({Material? material}) async {
+    final result = await showDialog<bool>(
       context: context,
-      builder: (BuildContext context) {
-        return MaterialFormDialog(material: material);
-      },
+      builder: (context) => MaterialFormDialog(material: material, db: _db),
     );
+    if (result == true) {
+      _refreshMaterialList();
+    }
+  }
+
+  void _deleteMaterial(int id) async {
+    final bool? confirm = await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('삭제 확인'),
+        content: const Text('정말로 이 자재를 삭제하시겠습니까?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('삭제', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        await (_db.delete(_db.materials)..where((tbl) => tbl.id.equals(id))).go();
+        _refreshMaterialList();
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('삭제에 실패했습니다: $e')),
+          );
+        }
+      }
+    }
   }
 
   @override
@@ -91,11 +144,11 @@ class _MaterialManagementScreenState extends State<MaterialManagementScreen> {
                             _searchType = newValue!;
                           });
                         },
-                        items: <String>['전체', '자재명', '위치']
+                        items: <String>['all', 'name', 'location']
                             .map<DropdownMenuItem<String>>((String value) {
                           return DropdownMenuItem<String>(
                             value: value,
-                            child: Text(value),
+                            child: Text(value == 'all' ? '전체' : value == 'name' ? '자재명' : '위치'),
                           );
                         }).toList(),
                       ),
@@ -160,20 +213,15 @@ class _MaterialManagementScreenState extends State<MaterialManagementScreen> {
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text('${material.quantity} 개', style: Theme.of(context).textTheme.titleMedium),
-                          const SizedBox(width: 16),
-                          /*PopupMenuButton<String>(
+                          PopupMenuButton<String>(
                             onSelected: (String result) {
                               if (result == 'edit') {
                                 _showMaterialFormDialog(material: material);
+                              } else if (result == 'delete') {
+                                _deleteMaterial(material.id);
                               }
-                              // TODO: Implement other menu actions
                             },
                             itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-                              const PopupMenuItem<String>(
-                                value: 'memo',
-                                child: ListTile(leading: Icon(Icons.note), title: Text('메모')),
-                              ),
                               const PopupMenuItem<String>(
                                 value: 'edit',
                                 child: ListTile(leading: Icon(Icons.edit), title: Text('수정')),
@@ -183,7 +231,7 @@ class _MaterialManagementScreenState extends State<MaterialManagementScreen> {
                                 child: ListTile(leading: Icon(Icons.delete), title: Text('삭제')),
                               ),
                             ],
-                          ),*/
+                          ),
                         ],
                       ),
                     ),

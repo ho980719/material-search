@@ -1,13 +1,13 @@
-
-import 'package:flutter/material.dart';
-import 'package:material_search/models/material.dart';
-import 'package:material_search/models/warehouse.dart';
+import 'package:drift/drift.dart' hide Column;
+import 'package:flutter/material.dart' hide Material;
+import 'package:material_search/data/drift/database.dart';
 import './warehouse_selection_dialog.dart';
 
 class MaterialFormDialog extends StatefulWidget {
-  final MaterialItem? material;
+  final Material? material;
+  final AppDatabase db;
 
-  const MaterialFormDialog({super.key, this.material});
+  const MaterialFormDialog({super.key, this.material, required this.db});
 
   @override
   State<MaterialFormDialog> createState() => _MaterialFormDialogState();
@@ -17,43 +17,82 @@ class _MaterialFormDialogState extends State<MaterialFormDialog> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _nameController;
   late TextEditingController _locationController;
-  late TextEditingController _quantityController;
   late TextEditingController _memoController;
-
-  // Dummy warehouse data for demonstration
-  final List<Warehouse> _warehouses = [
-    Warehouse(id: 1, name: '창고 A', memo: '서울시 강남구'),
-    Warehouse(id: 2, name: '창고 B', memo: '경기도 판교'),
-    Warehouse(id: 3, name: '창고 C', memo: '인천시 서구'),
-  ];
+  int? _selectedWarehouseId;
 
   @override
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.material?.name ?? '');
     _locationController = TextEditingController(text: widget.material?.location ?? '');
-    _quantityController = TextEditingController(text: widget.material?.quantity ?? '');
     _memoController = TextEditingController(text: widget.material?.memo ?? '');
+    _selectedWarehouseId = widget.material?.warehouseId;
   }
 
   @override
   void dispose() {
     _nameController.dispose();
     _locationController.dispose();
-    _quantityController.dispose();
     _memoController.dispose();
     super.dispose();
   }
 
+  Future<void> _save() async {
+    if (_formKey.currentState!.validate()) {
+      final name = _nameController.text;
+      final location = _locationController.text;
+      final memo = _memoController.text;
+      final isEditing = widget.material != null;
+
+      if (_selectedWarehouseId == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('창고를 선택해주세요.')),
+        );
+        return;
+      }
+
+      try {
+        if (isEditing) {
+          await (widget.db.update(widget.db.materials)
+                ..where((tbl) => tbl.id.equals(widget.material!.id)))
+              .write(MaterialsCompanion(
+            name: Value(name),
+            location: Value(location),
+            memo: Value(memo),
+            warehouseId: Value(_selectedWarehouseId!),
+          ));
+        } else {
+          await widget.db.into(widget.db.materials).insert(MaterialsCompanion.insert(
+                name: name,
+                location: location,
+                memo: Value(memo),
+                warehouseId: _selectedWarehouseId!,
+              ));
+        }
+        if (mounted) {
+          Navigator.of(context).pop(true); // Indicate success
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('저장에 실패했습니다: $e')),
+          );
+        }
+      }
+    }
+  }
+
   void _showWarehouseSelectionDialog() async {
+    final warehouses = await widget.db.select(widget.db.warehouses).get();
     final selectedWarehouse = await showDialog<Warehouse>(
       context: context,
-      builder: (context) => WarehouseSelectionDialog(warehouses: _warehouses),
+      builder: (context) => WarehouseSelectionDialog(warehouses: warehouses),
     );
 
     if (selectedWarehouse != null) {
       setState(() {
         _locationController.text = selectedWarehouse.name;
+        _selectedWarehouseId = selectedWarehouse.id;
       });
     }
   }
@@ -116,25 +155,6 @@ class _MaterialFormDialogState extends State<MaterialFormDialog> {
               ),
               const SizedBox(height: 16),
               TextFormField(
-                controller: _quantityController,
-                decoration: const InputDecoration(
-                  labelText: '수량',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.format_list_numbered_rtl_outlined),
-                ),
-                keyboardType: TextInputType.number,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return '수량을 입력해주세요.';
-                  }
-                  if (int.tryParse(value) == null) {
-                    return '숫자만 입력해주세요.';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
                 controller: _memoController,
                 decoration: const InputDecoration(
                   labelText: '메모',
@@ -162,12 +182,7 @@ class _MaterialFormDialogState extends State<MaterialFormDialog> {
               borderRadius: BorderRadius.circular(8.0),
             ),
           ),
-          onPressed: () {
-            if (_formKey.currentState!.validate()) {
-              // TODO: Implement save logic with selected warehouse
-              Navigator.of(context).pop();
-            }
-          },
+          onPressed: _save,
         ),
       ],
     );

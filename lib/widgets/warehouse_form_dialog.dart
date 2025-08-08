@@ -1,11 +1,12 @@
-
+import 'package:drift/drift.dart' hide Column;
 import 'package:flutter/material.dart';
-import 'package:material_search/models/warehouse.dart';
+import 'package:material_search/data/drift/database.dart';
 
 class WarehouseFormDialog extends StatefulWidget {
   final Warehouse? warehouse;
+  final AppDatabase db;
 
-  const WarehouseFormDialog({super.key, this.warehouse});
+  const WarehouseFormDialog({super.key, this.warehouse, required this.db});
 
   @override
   State<WarehouseFormDialog> createState() => _WarehouseFormDialogState();
@@ -30,10 +31,36 @@ class _WarehouseFormDialogState extends State<WarehouseFormDialog> {
     super.dispose();
   }
 
-  void _save() {
+  Future<void> _save() async {
     if (_formKey.currentState!.validate()) {
-      // TODO: Implement save logic
-      Navigator.of(context).pop();
+      final name = _nameController.text;
+      final memo = _memoController.text;
+      final isEditing = widget.warehouse != null;
+
+      try {
+        if (isEditing) {
+          final updatedWarehouse = (widget.db.update(widget.db.warehouses)
+                ..where((tbl) => tbl.id.equals(widget.warehouse!.id)))
+              .write(WarehousesCompanion(
+            name: Value(name),
+            memo: Value(memo),
+          ));
+        } else {
+          await widget.db.into(widget.db.warehouses).insert(WarehousesCompanion.insert(
+                name: name,
+                memo: Value(memo),
+              ));
+        }
+        if (mounted) {
+          Navigator.of(context).pop(true); // Indicate success
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('저장에 실패했습니다: $e')),
+          );
+        }
+      }
     }
   }
 
